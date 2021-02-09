@@ -1,35 +1,35 @@
-variable "input_port" {
-  description = "This is the web server input port"
-  type = number
-  default = 8080
+variable "server_port" {
+  default = "8080"
 }
 provider "aws" {
   region = "us-east-2"
 }
-resource "aws_instance" "web" {
-    ami = "ami-0c55b159cbfafe1f0"
-    instance_type = "t2.micro"
-    vpc_security_group_ids = [aws_security_group.instance.id]
-    user_data = <<-EOF
-      #!/bin/bash
-      echo "Hello World!" > index.html
-      nohup busybox httpd -f -p ${var.input_port} &
-    EOF
 
-    tags = {
-      name = "Web Server"
+resource "aws_launch_configuration" "ALC" {
+    image_id = "ami-0c55b159cbfafe1f0"
+    security_groups = []
+    instance_type = "t2.micro"
+    user_data = <<-EOF
+    #!/bin/bash
+      echo "Hello World" > index.html
+      nohup busybox httpd -f -p ${var.server_port} &
+      EOF
+    lifecycle {
+      create_before_destroy = true
     }
 }
 
-resource "aws_security_group" "instance" {
-  name = "Webserver"
-  ingress {
-    from_port = var.input_port
-    to_port = var.input_port
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+data "aws_vpc" "default" {
+  default = true
 }
-output "Public_IP" {
-  value = aws_instance.web.public_ip
+
+data "aws_subnet_ids" "default" {
+  vpc_id = data.aws_vpc.default.id
+}
+resource "aws_autoscaling_group" "example" {
+    launch_configuration = aws_launch_configuration.ALC.id
+    vpc_zone_identifier = data.aws_subnet_ids.default.ids
+    min_size = 2
+    max_size = 5
+    desired_capacity = 2
 }
