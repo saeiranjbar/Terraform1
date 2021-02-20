@@ -124,6 +124,40 @@ resource "aws_lb_listener_rule" "health_check" {
   }
 }
 
+resource "aws_s3_bucket" "bucket" {
+  bucket = "terraform-state-stored-remotely"
+  versioning {
+    enabled = true
+  }
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm     = "AES256"
+      }
+    }
+  }
+}
+
+resource "aws_dynamodb_table" "terraform_locks" {
+  name = "terraform-up-and-running-locks"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key = "LockID"
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+}
+
+terraform {
+  backend "s3" {
+    bucket = "terraform-state-stored-remotely"
+    key = "global/s3/terraform.tfstate"
+    region = "us-east-2"
+    dynamodb_table = "terraform-up-and-running-locks"
+    encrypt = true
+  }
+}
+
 output "lb_dns_name" {
   value = aws_lb.frontend.dns_name
 }
